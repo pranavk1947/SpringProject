@@ -26,19 +26,21 @@ public class IphoneObservableImpl implements StocksObservable{
 	public void notifySubscribers() {
 		for(NotificationAlertObserver observer : observerList) {
 			observer.update();
+		}		
+	}
+
+	@Override
+	public void setStockCount(int newStockAdded) {
+		if(stockCount == 0) {
+			notifySubscribers();
 		}
+		stockCount += newStockAdded;
 		
 	}
 
 	@Override
-	public void setStockCount(int stockCount) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void getStockCount() {
-		// TODO Auto-generated method stub
+	public int getStockCount() {
+		return stockCount;
 		
 	}
 	
