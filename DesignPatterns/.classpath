@@ -6,5 +6,25 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="/Users/vj/Downloads/jar_files/slf4j-api-2.0.13.jar"/>
+	<classpathentry kind="lib" path="/Users/vj/Downloads/jar_files/slf4j-simple-2.0.13.jar"/>
+	<classpathentry kind="lib" path="/Users/vj/.m2/repository/org/slf4j/slf4j-api/2.0.13/slf4j-api-2.0.13.jar" sourcepath="/Users/vj/.m2/repository/org/slf4j/slf4j-api/2.0.13/slf4j-api-2.0.13-sources.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="maven.groupId" value="org.slf4j"/>
+			<attribute name="maven.artifactId" value="slf4j-api"/>
+			<attribute name="maven.version" value="2.0.13"/>
+			<attribute name="maven.scope" value="compile"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="/Users/vj/.m2/repository/org/slf4j/slf4j-api/2.0.12/slf4j-api-2.0.12.jar" sourcepath="/Users/vj/.m2/repository/org/slf4j/slf4j-api/2.0.12/slf4j-api-2.0.12-sources.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="maven.groupId" value="org.slf4j"/>
+			<attribute name="maven.artifactId" value="slf4j-api"/>
+			<attribute name="maven.version" value="2.0.12"/>
+			<attribute name="maven.scope" value="compile"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

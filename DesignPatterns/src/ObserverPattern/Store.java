@@ -1,6 +1,7 @@
 package ObserverPattern;
 
 import ObserverPattern.Observable.IphoneObservableImpl;
+
 import ObserverPattern.Observable.StocksObservable;
 import ObserverPattern.Observer.EmailAlertObserverImpl;
 import ObserverPattern.Observer.MobileAlertObserverImpl;
@@ -21,6 +22,8 @@ public class Store {
 		iphoneStockObservable.add(obs2);
 		iphoneStockObservable.add(obs3);
 		
+		iphoneStockObservable.setStockCount(10);
+		iphoneStockObservable.setStockCount(-10);
 		iphoneStockObservable.setStockCount(10);
 		
 	}
