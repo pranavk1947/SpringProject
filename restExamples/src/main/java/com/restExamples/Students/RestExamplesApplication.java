@@ -1,4 +1,4 @@
-package com.restExamples;
+package com.restExamples.Students;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
