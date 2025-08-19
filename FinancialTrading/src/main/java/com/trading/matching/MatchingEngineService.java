@@ -1,0 +1,34 @@
+package com.trading.matching;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+
+import com.trading.order.Order;
+import com.trading.order.OrderSide;
+import com.trading.order.OrderType;
+import com.trading.order.repository.OrderRepository;
+import com.trading.trade.Trade;
+import com.trading.trade.repository.TradeRepository;
+import com.trading.common.service.IdGeneratorService;
+import com.trading.matching.dto.MatchResult;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class MatchingEngineService {
+    
+    private final OrderRepository orderRepository;
+    private final TradeRepository tradeRepository;
+    private final IdGeneratorService idGeneratorService;
+    private final OrderBookService orderBookService;
+    private final TradeEventPublisher tradeEventPublisher;
+    \n    // In-memory order books for high-performance matching\n    private final ConcurrentMap<String, OrderBook> orderBooks = new ConcurrentHashMap<>();\n    \n    public Mono<Void> submitOrder(Order order) {\n        log.debug(\"Submitting order to matching engine: {}\", order.getOrderId());\n        \n        return Mono.fromRunnable(() -> addOrderToBook(order))\n                .then(processMatching(order.getSymbol()))\n                .subscribeOn(Schedulers.boundedElastic())\n                .doOnSuccess(v -> log.debug(\"Order submitted successfully: {}\", order.getOrderId()))\n                .doOnError(error -> log.error(\"Failed to submit order: {}\", order.getOrderId(), error));\n    }\n    \n    public Mono<Void> updateOrder(Order order) {\n        log.debug(\"Updating order in matching engine: {}\", order.getOrderId());\n        \n        return Mono.fromRunnable(() -> {\n                    OrderBook book = getOrderBook(order.getSymbol());\n                    book.updateOrder(order);\n                })\n                .then(processMatching(order.getSymbol()))\n                .subscribeOn(Schedulers.boundedElastic())\n                .doOnSuccess(v -> log.debug(\"Order updated successfully: {}\", order.getOrderId()))\n                .doOnError(error -> log.error(\"Failed to update order: {}\", order.getOrderId(), error));\n    }\n    \n    public Mono<Void> cancelOrder(String orderId) {\n        log.debug(\"Cancelling order in matching engine: {}\", orderId);\n        \n        return orderRepository.findByOrderId(orderId)\n                .doOnNext(order -> {\n                    OrderBook book = getOrderBook(order.getSymbol());\n                    book.removeOrder(orderId);\n                })\n                .then()\n                .subscribeOn(Schedulers.boundedElastic())\n                .doOnSuccess(v -> log.debug(\"Order cancelled successfully: {}\", orderId))\n                .doOnError(error -> log.error(\"Failed to cancel order: {}\", orderId, error));\n    }\n    \n    public Mono<Void> processMatching(String symbol) {\n        return Mono.fromRunnable(() -> {\n                    OrderBook book = getOrderBook(symbol);\n                    performMatching(book);\n                })\n                .subscribeOn(Schedulers.boundedElastic())\n                .doOnError(error -> log.error(\"Failed to process matching for symbol: {}\", symbol, error));\n    }\n    \n    private void addOrderToBook(Order order) {\n        OrderBook book = getOrderBook(order.getSymbol());\n        book.addOrder(order);\n    }\n    \n    private OrderBook getOrderBook(String symbol) {\n        return orderBooks.computeIfAbsent(symbol, k -> new OrderBook(symbol));\n    }\n    \n    private void performMatching(OrderBook book) {\n        while (true) {\n            MatchResult matchResult = book.matchOrders();\n            if (matchResult == null || !matchResult.isMatched()) {\n                break;\n            }\n            \n            processTrade(matchResult)\n                    .subscribeOn(Schedulers.boundedElastic())\n                    .subscribe(\n                            trade -> log.debug(\"Trade processed: {}\", trade.getTradeId()),\n                            error -> log.error(\"Failed to process trade\", error)\n                    );\n        }\n    }\n    \n    private Mono<Trade> processTrade(MatchResult matchResult) {\n        Trade trade = buildTradeFromMatch(matchResult);\n        \n        return tradeRepository.save(trade)\n                .flatMap(this::updateOrdersAfterTrade)\n                .flatMap(tradeEventPublisher::publishTradeEvent)\n                .doOnSuccess(t -> log.info(\"Trade executed: {} - {} @ {} for {}\", \n                        t.getTradeId(), t.getSymbol(), t.getPrice(), t.getQuantity()));\n    }\n    \n    private Trade buildTradeFromMatch(MatchResult matchResult) {\n        return Trade.builder()\n                .tradeId(idGeneratorService.generateTradeId())\n                .symbol(matchResult.getSymbol())\n                .buyerOrderId(matchResult.getBuyOrder().getOrderId())\n                .sellerOrderId(matchResult.getSellOrder().getOrderId())\n                .buyerUserId(matchResult.getBuyOrder().getUserId())\n                .sellerUserId(matchResult.getSellOrder().getUserId())\n                .quantity(matchResult.getQuantity())\n                .price(matchResult.getPrice())\n                .createdAt(LocalDateTime.now())\n                .build();\n    }\n    \n    private Mono<Trade> updateOrdersAfterTrade(Trade trade) {\n        Mono<Order> updateBuyOrder = orderRepository.findByOrderId(trade.getBuyerOrderId())\n                .doOnNext(order -> order.fill(trade.getQuantity(), trade.getPrice()))\n                .flatMap(orderRepository::save);\n                \n        Mono<Order> updateSellOrder = orderRepository.findByOrderId(trade.getSellerOrderId())\n                .doOnNext(order -> order.fill(trade.getQuantity(), trade.getPrice()))\n                .flatMap(orderRepository::save);\n                \n        return Mono.when(updateBuyOrder, updateSellOrder)\n                .then(Mono.just(trade));\n    }\n    \n    public Flux<Order> getOrderBookSnapshot(String symbol, OrderSide side, int levels) {\n        return Mono.fromSupplier(() -> getOrderBook(symbol))\n                .flatMapMany(book -> Flux.fromIterable(book.getOrders(side, levels)))\n                .subscribeOn(Schedulers.boundedElastic());\n    }\n    \n    public Mono<BigDecimal> getLastTradePrice(String symbol) {\n        return tradeRepository.findLatestTradeBySymbol(symbol)\n                .map(Trade::getPrice)\n                .defaultIfEmpty(BigDecimal.ZERO);\n    }\n}
